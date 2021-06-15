@@ -169,13 +169,10 @@ Serial.print(myTime);
       Serial.print("GyroZ:");
 
   Serial.print(gyro.gyro.z);
+
+//  Serial.println(" radians/s ");
   
   Serial.println(")");
-//  Serial.print(" \tY: ");
-//  Serial.print(gyro.gyro.y);
-//  Serial.print(" \tZ: ");
-//  Serial.print(gyro.gyro.z);
-//  Serial.println(" radians/s ");
 //  Serial.println();
 
 
@@ -197,7 +194,4 @@ Serial.print(myTime);
   //  Serial.print(","); Serial.print(mag.magnetic.y);
   //  Serial.print(","); Serial.print(mag.magnetic.z);
 
-  //  Serial.println();
-  //
-  //  delayMicroseconds(measurement_delay_us);
 }

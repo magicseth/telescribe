@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>My first three.js app</title>
+    <style>
+      body {
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- <script src="js/three.js"></script> -->
+    <script type="module">
+      import * as THREE from "https://cdn.skypack.dev/three@0.129.0";
+
+      import { OrbitControls } from "https://cdn.skypack.dev/three@0.129.0/examples/jsm/controls/OrbitControls.js";
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
+
+      //   camera.position.set(0, 0, 100);
+      //   camera.lookAt(0, 0, 0);
+
+      var lastAccel = new THREE.Vector3();
+      var deltaAccel = new THREE.Vector3();
+
+      var currentGuessedAccel = new THREE.Vector3();
+      var currentGuessedSpeed = new THREE.Vector3();
+      var touchDown = false;
+
+      const renderer = new THREE.WebGLRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+      var controls = new OrbitControls(camera, renderer.domElement);
+
+      const geometry = new THREE.BoxGeometry();
+      const material = new THREE.MeshBasicMaterial({
+        color: 0x00ff00,
+        wireframe: true,
+      });
+      const cube = new THREE.Mesh(geometry, material);
+      scene.add(cube);
+      const newGeometry = geometry.clone();
+      newGeometry.scale(0.5, 0.5, 0.5);
+      const cube2 = new THREE.Mesh(newGeometry, material);
+      cube2.position.copy(new THREE.Vector3(0, 1, 0));
+      cube.add(cube2);
+      var points = [];
+
+      var linesObj = drawLines();
+      scene.add(linesObj);
+
+      camera.position.z = 5;
+      const animate = function () {
+        requestAnimationFrame(animate);
+        // cube.rotation.x += 0.01;
+        // cube.rotation.y += 0.01;
+        // console.log("current Speed");
+        // console.log(currentGuessedSpeed);
+
+        var newPosition = cube.localToWorld(currentGuessedSpeed.clone());
+        if (newPosition.x != 0 && newPosition.y != 0 && newPosition.z != 0) {
+          points.push(newPosition);
+        }
+        // console.log(newPosition);
+        // cube.position.x = newPosition.x;
+        // cube.position.y = newPosition.y;
+        // cube.position.z = newPosition.z;
+        // newPosition = deltaAccel += runningAccelTotal;
+
+        if (touchDown) {
+          cube.position.copy(newPosition);
+          //   cube.position.copy(deltaAccel).multiplyScalar(0.1);
+        } else {
+          cube.position.copy(new THREE.Vector3());
+        }
+        cube.position.copy(currentGuessedSpeed);
+        scene.remove(linesObj);
+        linesObj = drawLines();
+        scene.add(linesObj);
+
+        // currentGuessedSpeed.multiplyScalar(0.98);
+        // console.log("curreng Accel length");
+        // console.log(currentGuessedAccel.length());
+        currentGuessedAccel = new THREE.Vector3();
+
+        renderer.render(scene, camera);
+      };
+      animate();
+      //   function newGyroData(gX, gY, gZ) {
+      //     var gyro = new THREE.Vector3(gX, gY, gZ);
+      //   }
+
+      var lastmillis = 0;
+      function newAccelerometerData(millis, accX, accY, accZ, gX, gY, gZ) {
+        var timedelta = (millis - lastmillis) / 1000;
+
+        lastmillis = millis;
+        var newAccel = new THREE.Vector3(accX, accY, accZ);
+        // if (!lastAccel) return;
+        // console.log("new");
+        // console.log(newAccel);
+        // console.log(lastAccel);
+        cube.rotation.x += gX * timedelta;
+        cube.rotation.y += gY * timedelta;
+        cube.rotation.z += gZ * timedelta;
+        const a = new THREE.Euler(
+          -gX * timedelta,
+          -gY * timedelta,
+          -gZ * timedelta,
+          "XYZ"
+        );
+
+        var rotatedLastAccel = lastAccel.clone().applyEuler(a);
+        // console.log(rotatedLastAccel);
+
+        deltaAccel = newAccel.clone().sub(rotatedLastAccel);
+
+        console.log("time delta " + timedelta);
+        console.log(deltaAccel);
+        console.log(deltaAccel.clone().multiplyScalar(timedelta));
+        // console.log("deltaAccelLength");
+        // console.log(deltaAccel.length());
+
+        currentGuessedSpeed.add(deltaAccel.clone().multiplyScalar(timedelta));
+        // console.log(currentGuessedSpeed);
+
+        lastAccel = newAccel;
+
+        if (!touchDown) {
+          currentGuessedAccel = new THREE.Vector3();
+          currentGuessedSpeed = new THREE.Vector3();
+          return false;
+        }
+        if (deltaAccel.length() > 0.001) {
+          currentGuessedAccel.add(deltaAccel);
+        }
+        // console.log("current Guess" + currentGuessedAccel);
+        // console.log(currentGuessedAccel);
+      }
+
+      //   newAccelerometerData(0.01, 0, 0);
+      //   newAccelerometerData(0, 0, 0);
+
+      function drawLines() {
+        const material = new THREE.LineBasicMaterial({ color: 0xffffff });
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const line = new THREE.Line(geometry, material);
+        return line;
+      }
+
+      function uintToString(uintArray) {
+        var encodedString = String.fromCharCode(uintArray[0]),
+          decodedString = decodeURIComponent(escape(atob(encodedString)));
+        return decodedString;
+      }
+
+      async function readAllChunks(readableStream) {
+        const reader = readableStream.getReader();
+        const chunks = [];
+        var partial = "";
+
+        let done, value;
+        while (!done) {
+          ({ value, done } = await reader.read());
+          if (done) {
+            return chunks;
+          }
+
+          for (var i = 0; i < value.length; i++) {
+            var char = String.fromCharCode(value[i]);
+            if (char != "\n") {
+              partial += char;
+            } else {
+              var accels = partial.split(",");
+              accels = accels.map((thing) =>
+                parseFloat(thing.replace(/[^0-9.\-]/g, ""))
+              );
+              //   newGyroData();
+              newAccelerometerData(
+                accels[0],
+                -accels[2],
+                accels[1],
+                accels[3],
+                -accels[5],
+                accels[4],
+                accels[6]
+              );
+              if (i % 100 == 0) console.log(partial);
+              partial = "";
+            }
+          }
+
+          chunks.push(value);
+        }
+      }
+      fetch("http://127.0.0.1:5000/large.csv")
+        .then((response) => {
+          readAllChunks(response.body);
+        })
+        .catch((err) => console.log(err));
+
+      document.onkeyup = logKeyUp;
+
+      function logKeyUp(e) {
+        if (e.code == "Space") touchDown = false;
+        cube.position.copy(new THREE.Vector3());
+        // cube.updateMatrix();
+
+        console.log(e.code);
+      }
+
+      document.onkeydown = logKey;
+
+      function logKey(e) {
+        if (e.code == "Space") touchDown = true;
+        if (!event.repeat) {
+          points = [];
+        }
+        console.log(e.code);
+      }
+
+      //   console.log(await readAllChunks(response.body));
+    </script>
+  </body>
+</html>

@@ -24,13 +24,12 @@
         1000
       );
 
-      //   camera.position.set(0, 0, 100);
-      //   camera.lookAt(0, 0, 0);
+      camera.position.set(0, 0, 100);
+      camera.lookAt(0, 0, 0);
 
       var lastAccel = new THREE.Vector3();
       var deltaAccel = new THREE.Vector3();
 
-      var currentGuessedAccel = new THREE.Vector3();
       var currentGuessedSpeed = new THREE.Vector3();
       var touchDown = false;
 
@@ -44,42 +43,60 @@
         color: 0x00ff00,
         wireframe: true,
       });
+      const redmaterial = new THREE.MeshBasicMaterial({
+        color: 0xff0000,
+        wireframe: false,
+      });
+      const bluematerial = new THREE.MeshBasicMaterial({
+        color: 0x0000ff,
+        wireframe: false,
+      });
+
       const cube = new THREE.Mesh(geometry, material);
+      const speedcube = new THREE.Mesh(new THREE.CircleGeometry(), material);
       scene.add(cube);
+      scene.add(speedcube);
       const newGeometry = geometry.clone();
       newGeometry.scale(0.5, 0.5, 0.5);
-      const cube2 = new THREE.Mesh(newGeometry, material);
-      cube2.position.copy(new THREE.Vector3(0, 1, 0));
+
+      var cube2 = new THREE.Mesh(newGeometry, redmaterial);
+      cube2.position.copy(new THREE.Vector3(0, 0, 1));
       cube.add(cube2);
+      cube2 = new THREE.Mesh(newGeometry, bluematerial);
+      cube2.position.copy(new THREE.Vector3(0, -1, 0));
+      cube.add(cube2);
+      //   cube2 = new THREE.Mesh(newGeometry, redmaterial);
+      //   cube2.position.copy(new THREE.Vector3(1, 0, 0));
+      //   cube.add(cube2);
+
       var allLines = [];
       var points = [];
+      var accelPoints = [];
+      var speedPoints = [];
 
-      var linesObj = drawLines();
+      var linesObj = drawLines(points);
       scene.add(linesObj);
+
+      var accelLines = drawLines(accelPoints);
+      scene.add(accelLines);
+
+      var speedLines = drawLines(speedPoints);
+      scene.add(speedLines);
 
       camera.position.z = 5;
       const animate = function () {
         requestAnimationFrame(animate);
-        // cube.rotation.x += 0.01;
-        // cube.rotation.y += 0.01;
-        // console.log("current Speed");
-        // console.log(currentGuessedSpeed);
-
-        // console.log(newPosition);
-        // cube.position.x = newPosition.x;
-        // cube.position.y = newPosition.y;
-        // cube.position.z = newPosition.z;
-        // newPosition = deltaAccel += runningAccelTotal;
-
-        // cube.position.copy(currentGuessedSpeed);
         scene.remove(linesObj);
-        linesObj = drawLines();
+        linesObj = drawLines(points);
         scene.add(linesObj);
 
-        // currentGuessedSpeed.multiplyScalar(0.98);
-        // console.log("curreng Accel length");
-        // console.log(currentGuessedAccel.length());
-        currentGuessedAccel = new THREE.Vector3();
+        scene.remove(accelLines);
+        accelLines = drawLines(accelPoints, 0xff0000);
+        scene.add(accelLines);
+
+        scene.remove(speedLines);
+        speedLines = drawLines(speedPoints);
+        scene.add(speedLines);
 
         renderer.render(scene, camera);
       };
@@ -88,6 +105,7 @@
       //     var gyro = new THREE.Vector3(gX, gY, gZ);
       //   }
 
+      var firstPositionUpdate = Date.now();
       var lastPositionUpdate = Date.now();
       function updatePosition() {
         var now = Date.now();
@@ -95,11 +113,25 @@
         lastPositionUpdate = now;
 
         var newPosition = cube.localToWorld(
-          currentGuessedSpeed.clone().multiplyScalar(timedelta * 1000)
+          currentGuessedSpeed.clone().multiplyScalar(timedelta * 10000)
         );
-        if (newPosition.x != 0 && newPosition.y != 0 && newPosition.z != 0) {
+        if (newPosition.x != 0 || newPosition.y != 0 || newPosition.z != 0) {
           points.push(newPosition);
         }
+
+        var accelPosition = new THREE.Vector3(
+          0,
+          lastAccel.z * 100,
+          (now - firstPositionUpdate) / 100
+        );
+        accelPoints.push(accelPosition);
+
+        var speedPosition = new THREE.Vector3(
+          0,
+          currentGuessedSpeed.x * 100,
+          (now - firstPositionUpdate) / 100
+        );
+        speedPoints.push(speedPosition);
 
         if (touchDown) {
           cube.position.copy(newPosition);
@@ -107,12 +139,11 @@
         } else {
           cube.position.copy(new THREE.Vector3());
         }
-        currentGuessedSpeed.multiplyScalar(0.99);
+        currentGuessedSpeed.multiplyScalar(0.9);
         // cube.position.copy(currentGuessedSpeed);
       }
 
       var lastmillis = 0;
-
       function newAccelerometerData(
         millis,
         accX,
@@ -129,59 +160,42 @@
         var timedelta = (millis - lastmillis) / 1000;
 
         lastmillis = millis;
-        var newAccel = new THREE.Vector3(accX, accY, accZ);
-        // if (!lastAccel) return;
-        // console.log("new");
-        // console.log(newAccel);
-        // console.log(lastAccel);
+        var newAccel = new THREE.Vector3(-accX, accZ, -accY);
 
-        var quaternion = new THREE.Quaternion(qX, qY, qZ, qW);
+        var quaternion = new THREE.Quaternion(qZ, qY, qW, qX);
         cube.quaternion.copy(quaternion);
-        // cube.rotation.x += gX * timedelta;
-        // cube.rotation.y += gY * timedelta;
-        // cube.rotation.z += gZ * timedelta;
-        const a = new THREE.Euler(
-          -gX * timedelta,
-          -gY * timedelta,
-          -gZ * timedelta,
-          "XYZ"
-        );
+        speedcube.quaternion.copy(quaternion);
 
-        var rotatedLastAccel = lastAccel.clone().applyEuler(a);
-        // console.log(rotatedLastAccel);
-
-        // deltaAccel = newAccel.clone().sub(rotatedLastAccel);
-
-        console.log("time delta " + timedelta);
-        console.log(lastAccel);
-        console.log(lastAccel.length());
+        if (lastAccel.length() > 0.03) {
+          console.log("time delta " + timedelta);
+          console.log(lastAccel);
+          console.log(lastAccel.clone().sub(newAccel).length());
+        }
         // console.log(deltaAccel.clone().multiplyScalar(timedelta));
         // console.log("deltaAccelLength");
         // console.log(deltaAccel.length());
 
         // console.log(currentGuessedSpeed);
+        lastAccel = newAccel;
 
         if (!touchDown) {
-          lastAccel = newAccel;
-
-          currentGuessedAccel = new THREE.Vector3();
           currentGuessedSpeed = new THREE.Vector3();
           return false;
         }
-        // if (deltaAccel.length() > 0.0) {
-        //   currentGuessedAccel.add(deltaAccel.multiplyScalar(timedelta));
-        // }
-        if (newAccel.length() > 0.03) {
-          currentGuessedSpeed.add(newAccel.clone().multiplyScalar(timedelta));
+        var threshold = 0.03;
+        threshold = 0.01;
+        if (newAccel.length() > threshold) {
+          //   newAccel.applyQuaternion(quaternion);
+
+          var newSpeedAddition = speedcube.localToWorld(newAccel);
+          currentGuessedSpeed.add(newSpeedAddition.multiplyScalar(timedelta));
         }
 
         updatePosition();
-        // console.log("current Guess" + currentGuessedAccel);
-        // console.log(currentGuessedAccel);
       }
 
-      function drawLines() {
-        const material = new THREE.LineBasicMaterial({ color: 0xffffff });
+      function drawLines(points, color = 0xffffff) {
+        const material = new THREE.LineBasicMaterial({ color: color });
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
         const line = new THREE.Line(geometry, material);
         return line;
@@ -236,11 +250,18 @@
           chunks.push(value);
         }
       }
-      fetch("http://127.0.0.1:5000/large.csv")
-        .then((response) => {
-          readAllChunks(response.body);
-        })
-        .catch((err) => console.log(err));
+
+      function fetchit() {
+        fetch("http://127.0.0.1:5000/large.csv")
+          .then((response) => {
+            readAllChunks(response.body);
+          })
+          .catch((err) => {
+            console.log(err);
+            fetchit();
+          });
+      }
+      fetchit();
 
       document.onkeyup = logKeyUp;
 
@@ -258,6 +279,10 @@
         if (e.code == "Space") touchDown = true;
         if (!event.repeat) {
           points = [];
+          accelPoints = [];
+          speedPoints = [];
+          currentGuessedSpeed = new THREE.Vector3();
+          firstPositionUpdate = Date.now();
         }
         console.log(e.code);
       }

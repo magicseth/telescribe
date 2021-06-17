@@ -111,7 +111,7 @@ void run_icm20948_accel_controller()
     {
         icm20948.readAccelData(&x, &y, &z);
         sprintf(sensor_string_buff, "AccX:%f, AccY:%f,AccZ:%f", x, y, z);
-        Serial.println(sensor_string_buff);
+        Serial.print(sensor_string_buff);
     }
     
 }
@@ -209,7 +209,6 @@ void loop()
   if (ICM_found)
   {
     icm20948.task();
-//    run_icm20948_accel_controller();
     unsigned long myTime = millis();
   Serial.print("(");
   Serial.print("millis:");
@@ -225,6 +224,11 @@ void loop()
     //run_icm20948_grav_controller();
     //run_icm20948_quat6_controller(true);
     run_icm20948_quat9_controller(false);
+
+
+            Serial.print(",");
+  run_icm20948_accel_controller();
+
     Serial.println(")");
     //run_icm20948_har_controller();
     //run_icm20948_steps_controller();

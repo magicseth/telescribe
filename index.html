@@ -31,6 +31,8 @@
       var deltaAccel = new THREE.Vector3();
 
       var currentGuessedSpeed = new THREE.Vector3();
+      var currentGuessedBias = new THREE.Vector3();
+      var biasCount = 0;
       var touchDown = false;
 
       const renderer = new THREE.WebGLRenderer();
@@ -124,7 +126,8 @@
           lastAccel.z * 100,
           (now - firstPositionUpdate) / 100
         );
-        accelPoints.push(accelPosition);
+
+        // accelPoints.push(accelPosition);
 
         var speedPosition = new THREE.Vector3(
           0,
@@ -139,38 +142,69 @@
         } else {
           cube.position.copy(new THREE.Vector3());
         }
-        currentGuessedSpeed.multiplyScalar(0.9);
+        // currentGuessedSpeed.multiplyScalar(0.9);
         // cube.position.copy(currentGuessedSpeed);
       }
 
       var lastmillis = 0;
       function newAccelerometerData(
         millis,
-        accX,
-        accY,
-        accZ,
+        linX,
+        linY,
+        linZ,
         gX,
         gY,
         gZ,
         qW,
         qX,
         qY,
-        qZ
+        qZ,
+        accX,
+        accY,
+        accZ
       ) {
         var timedelta = (millis - lastmillis) / 1000;
 
         lastmillis = millis;
-        var newAccel = new THREE.Vector3(-accX, accZ, -accY);
+        var newAccel = new THREE.Vector3(-linX, linZ, -linY);
 
         var quaternion = new THREE.Quaternion(qZ, qY, qW, qX);
+        var angledelta = quaternion.angleTo(cube.quaternion);
+
+        var allAcceleration = new THREE.Vector3(accX, accY, accZ);
+
+        const totalBiasCount = 100;
+        if (biasCount < totalBiasCount) {
+          currentGuessedBias.add(newAccel);
+          biasCount++;
+          currentGuessedSpeed = new THREE.Vector3();
+
+          return;
+        } else if (biasCount == totalBiasCount) {
+          currentGuessedBias.multiplyScalar(1 / totalBiasCount);
+        }
+
+        // var anglethreshold = 0.0001;
+        // if (angledelta < anglethreshold) {
+        //   currentGuessedBias
+        //     .multiplyScalar(0.99)
+        //     .add(newAccel.multiplyScalar(0.01));
+
+        //   currentGuessedSpeed = new THREE.Vector3();
+        //   return;
+        // }
+
+        newAccel.sub(currentGuessedBias);
+
+        // console.log("angle delta " + angledelta);
         cube.quaternion.copy(quaternion);
         speedcube.quaternion.copy(quaternion);
 
-        if (lastAccel.length() > 0.03) {
-          console.log("time delta " + timedelta);
-          console.log(lastAccel);
-          console.log(lastAccel.clone().sub(newAccel).length());
-        }
+        // if (lastAccel.length() > 0.03) {
+        //   console.log("time delta " + timedelta);
+        //   console.log(lastAccel);
+        //   console.log(lastAccel.clone().sub(newAccel).length());
+        // }
         // console.log(deltaAccel.clone().multiplyScalar(timedelta));
         // console.log("deltaAccelLength");
         // console.log(deltaAccel.length());
@@ -183,12 +217,25 @@
           return false;
         }
         var threshold = 0.03;
-        threshold = 0.01;
+        threshold = 0.0;
         if (newAccel.length() > threshold) {
           //   newAccel.applyQuaternion(quaternion);
 
           var newSpeedAddition = speedcube.localToWorld(newAccel);
+
           currentGuessedSpeed.add(newSpeedAddition.multiplyScalar(timedelta));
+
+          //   console.log(newSpeedAddition);
+          console.log(allAcceleration);
+          console.log(
+            allAcceleration.length() +
+              " speedup " +
+              newSpeedAddition.length() +
+              " now " +
+              currentGuessedSpeed.length() +
+              " bias " +
+              currentGuessedBias.length()
+          );
         }
 
         updatePosition();
@@ -240,9 +287,12 @@
                 accels[7],
                 accels[8],
                 accels[9],
-                accels[10]
+                accels[10],
+                accels[11],
+                accels[12],
+                accels[13]
               );
-              if (i % 100 == 0) console.log(partial);
+              //   if (i % 100 == 0) console.log(partial);
               partial = "";
             }
           }
@@ -277,12 +327,15 @@
 
       function logKey(e) {
         if (e.code == "Space") touchDown = true;
+        else return;
         if (!event.repeat) {
           points = [];
           accelPoints = [];
           speedPoints = [];
           currentGuessedSpeed = new THREE.Vector3();
           firstPositionUpdate = Date.now();
+          biasCount = 0;
+          var currentGuessedBias = new THREE.Vector3();
         }
         console.log(e.code);
       }

@@ -1,5 +1,10 @@
 #include "Arduino-ICM20948.h"
 #include <Wire.h>
+#include <WiFi.h>
+
+#include "esp_http_server.h"
+const char* ssid = "Wiphael";
+const char* password = "sethlovesme";
 
 
 ArduinoICM20948 icm20948;
@@ -98,7 +103,7 @@ void run_icm20948_quat9_controller(bool inEuler = false)
         {
             icm20948.readQuat9Data(&quat_w, &quat_x, &quat_y, &quat_z);
             sprintf(sensor_string_buff, "qW:%f,qX:%f,qY:%f,qZ:%f", quat_w, quat_x, quat_y, quat_z);
-            Serial.print(sensor_string_buff);
+            printOrChunk(sensor_string_buff);
         }
     }
     
@@ -111,7 +116,7 @@ void run_icm20948_accel_controller()
     {
         icm20948.readAccelData(&x, &y, &z);
         sprintf(sensor_string_buff, "AccX:%f, AccY:%f,AccZ:%f", x, y, z);
-        Serial.print(sensor_string_buff);
+        printOrChunk(sensor_string_buff);
     }
     
 }
@@ -123,7 +128,7 @@ void run_icm20948_gyro_controller()
     {
         icm20948.readGyroData(&x, &y, &z);
         sprintf(sensor_string_buff, "gyrX:%f,gyrY:%f,gyrZ:%f", x, y, z);
-        Serial.print(sensor_string_buff);
+        printOrChunk(sensor_string_buff);
     }
     
 }
@@ -147,7 +152,7 @@ void run_icm20948_linearAccel_controller()
     {
         icm20948.readLinearAccelData(&x, &y, &z);
         sprintf(sensor_string_buff, "linX:%f, linY:%f ,linZ:%f", x, y, z);
-        Serial.print(sensor_string_buff);
+        printOrChunk(sensor_string_buff);
     }
     
 }
@@ -188,6 +193,151 @@ void run_icm20948_steps_controller()
     
 }
 
+
+
+
+
+
+
+
+
+
+////////////////////////////////////////
+
+
+static const char* _STREAM_CONTENT_TYPE = "multipart/x-mixed-replace";
+void closedsocket(void *ctx) {
+  Serial.println("closed");
+}
+static httpd_req_t *staticReq ;
+httpd_handle_t stream_httpd = NULL;
+static esp_err_t stream_handler(httpd_req_t *req){
+  staticReq = req;
+  char * part_buf[64];
+
+  esp_err_t res = ESP_OK;
+
+  res = httpd_resp_set_type(req, _STREAM_CONTENT_TYPE);
+
+  res = httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  res = httpd_resp_set_hdr(req, "Access-Control-Allow-Methods", "*");
+  res = httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "*");
+
+  if(res != ESP_OK){
+    return res;
+  }
+
+int thing;
+req->free_ctx = closedsocket;
+req->sess_ctx = &thing;
+  while(true){
+
+    size_t recv_size = 1;
+    char content[2];
+
+//int httpd_socket_recv(req.handle, int sockfd, content, 1, int flags)
+//
+//    int ret = httpd_socket_recv(req, content, recv_size);
+////          Serial.print(ret);
+//
+//    if (ret < 0) {  /* 0 return value indicates connection closed */
+//      Serial.print("error on connection");
+//        /* Check if timeout occurred */
+//        if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
+//            /* In case of timeout one can choose to retry calling
+//             * httpd_req_recv(), but to keep it simple, here we
+//             * respond with an HTTP 408 (Request Timeout) error */
+//            httpd_resp_send_408(req);
+//        }
+//        /* In case of error, returning ESP_FAIL will
+//         * ensure that the underlying socket is closed */
+//        return ESP_FAIL;
+//    }
+
+        icm20948.task();
+    int myTime = millis();
+  printOrChunk("(");
+  printOrChunk("millis:");
+  printOrChunk(myTime);
+
+
+        printOrChunk(",");
+    run_icm20948_linearAccel_controller();
+        printOrChunk(",");
+    run_icm20948_gyro_controller();
+    printOrChunk(",");
+    run_icm20948_quat9_controller(false);
+
+
+   printOrChunk(",");
+  run_icm20948_accel_controller();
+
+    printOrChunk(")");
+    int failed = printOrChunk("\n");
+    if (failed) {
+      return ESP_FAIL;
+    }
+    
+    //run_icm20948_har_controller();
+    //run_icm20948_steps_controller();
+
+//      res = httpd_resp_send_chunk(req, "HELLO WORLD", 7);
+    }
+  
+  return res;
+}
+void printOrChunk(int number) {
+
+
+char cstr[16];
+itoa(number, cstr, 10);
+
+printOrChunk(cstr);
+}
+
+void printOrChunk(float number) {
+  char result[10]; // Buffer big enough for 7-character float
+dtostrf(number, 6, 8, result); // Leave room for too large numbers!
+
+  printOrChunk(result);
+}
+
+int printOrChunk(const char * thestring) {
+//Serial.print(thestring);
+int res = httpd_resp_send_chunk(staticReq, thestring, strlen(thestring));
+//Serial.println(res);
+return res;
+
+}
+
+void printOrChunk(String thestring) {
+
+printOrChunk(thestring.c_str());
+
+}
+
+
+
+void startServer(){
+  httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+  config.server_port = 80;
+
+  httpd_uri_t index_uri = {
+    .uri       = "/",
+    .method    = HTTP_GET,
+    .handler   = stream_handler,
+    .user_ctx  = NULL
+  };
+  
+  //Serial.printf("Starting web server on port: '%d'\n", config.server_port);
+  if (httpd_start(&stream_httpd, &config) == ESP_OK) {
+    httpd_register_uri_handler(stream_httpd, &index_uri);
+  }
+}
+
+
+
+
 void setup() 
 {
   Serial.begin(230400);
@@ -203,35 +353,51 @@ void setup()
   }
 
 
+
+  // Wi-Fi connection
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.println("WiFi connected");
+  
+  Serial.print("Camera Stream Ready! Go to: http://");
+  Serial.print(WiFi.localIP());
+
+  startServer();
 }
+
+
+
+
+
 void loop() 
 {
   if (ICM_found)
   {
-    icm20948.task();
-    unsigned long myTime = millis();
-  Serial.print("(");
-  Serial.print("millis:");
-  Serial.print(myTime);
-
-
-        Serial.print(",");
-    run_icm20948_linearAccel_controller();
-        Serial.print(",");
-    run_icm20948_gyro_controller();
-    Serial.print(",");
-    //run_icm20948_mag_controller();
-    //run_icm20948_grav_controller();
-    //run_icm20948_quat6_controller(true);
-    run_icm20948_quat9_controller(false);
-
-
-            Serial.print(",");
-  run_icm20948_accel_controller();
-
-    Serial.println(")");
-    //run_icm20948_har_controller();
-    //run_icm20948_steps_controller();
+//    icm20948.task();
+//    unsigned long myTime = millis();
+//  Serial.print("(");
+//  Serial.print("millis:");
+//  Serial.print(myTime);
+//
+//
+//        Serial.print(",");
+//    run_icm20948_linearAccel_controller();
+//        Serial.print(",");
+//    run_icm20948_gyro_controller();
+//    Serial.print(",");
+//    run_icm20948_quat9_controller(false);
+//
+//
+//   Serial.print(",");
+//  run_icm20948_accel_controller();
+//
+//    Serial.println(")");
+//    //run_icm20948_har_controller();
+//    //run_icm20948_steps_controller();
   }
 
 }

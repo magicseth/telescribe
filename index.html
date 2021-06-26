@@ -217,7 +217,7 @@
           return false;
         }
         var threshold = 0.03;
-        threshold = 0.0;
+        threshold = 0.01;
         if (newAccel.length() > threshold) {
           //   newAccel.applyQuaternion(quaternion);
 
@@ -302,7 +302,9 @@
       }
 
       function fetchit() {
-        fetch("http://127.0.0.1:5000/large.csv")
+        var url = "http://127.0.0.1:5000/large.csv"
+        url = "http://192.168.86.195"
+        fetch(url)
           .then((response) => {
             readAllChunks(response.body);
           })
